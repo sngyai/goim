@@ -55,6 +55,8 @@ func Default() *Config {
 // Config is job config.
 type Config struct {
 	Env       *Env
+	Mq        string
+	Nats	  *Nats
 	Kafka     *Kafka
 	Discovery *naming.Config
 	Comet     *Comet
@@ -81,6 +83,10 @@ type Kafka struct {
 	Brokers []string
 }
 
+type Nats struct {
+	Topic  string
+	Broker string
+}
 // Env is env config.
 type Env struct {
 	Region    string

@@ -77,7 +77,9 @@ type Config struct {
 	RPCClient  *RPCClient
 	RPCServer  *RPCServer
 	HTTPServer *HTTPServer
+	Mq		   string
 	Kafka      *Kafka
+	Nats	   *Nats
 	Redis      *Redis
 	Node       *Node
 	Backoff    *Backoff
@@ -132,6 +134,12 @@ type Kafka struct {
 	Topic   string
 	Brokers []string
 }
+
+type Nats struct {
+	Topic  string
+	Broker string
+}
+
 
 // RPCClient is RPC client config.
 type RPCClient struct {

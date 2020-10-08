@@ -1,4 +1,5 @@
 # This is a TOML document. Boom
+mq = "nats"
 [discovery]
     nodes = ["127.0.0.1:7171"]
 
@@ -42,9 +43,14 @@
     topic = "goim-push-topic"
     brokers = ["127.0.0.1:9092"]
 
+[nats]
+    topic = "goim-push-topic"
+    broker = "nats://127.0.0.1:4222"
+
 [redis]
     network = "tcp"
     addr = "127.0.0.1:6379"
+    auth = "123456"
     active = 60000
     idle = 1024
     dialTimeout = "200ms"

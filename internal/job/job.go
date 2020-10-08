@@ -1,24 +1,19 @@
 package job
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
 
-	pb "github.com/Terry-Mao/goim/api/logic/grpc"
 	"github.com/Terry-Mao/goim/internal/job/conf"
 	"github.com/bilibili/discovery/naming"
-	"github.com/gogo/protobuf/proto"
-
-	cluster "github.com/bsm/sarama-cluster"
 	log "github.com/golang/glog"
 )
 
 // Job is push job.
 type Job struct {
 	c            *conf.Config
-	consumer     *cluster.Consumer
+	consumer     Consumer
 	cometServers map[string]*Comet
 
 	rooms      map[string]*Room
@@ -29,22 +24,18 @@ type Job struct {
 func New(c *conf.Config) *Job {
 	j := &Job{
 		c:        c,
-		consumer: newKafkaSub(c.Kafka),
 		rooms:    make(map[string]*Room),
+	}
+	switch c.Mq {
+	case "kafka":
+		j.consumer = newKafkaConsumer(c.Kafka)
+	case "nats":
+		j.consumer = newNatsConsumer(c.Nats)
+	default:
+		panic("invalid config")
 	}
 	j.watchComet(c.Discovery)
 	return j
-}
-
-func newKafkaSub(c *conf.Kafka) *cluster.Consumer {
-	config := cluster.NewConfig()
-	config.Consumer.Return.Errors = true
-	config.Group.Return.Notifications = true
-	consumer, err := cluster.NewConsumer(c.Brokers, c.Group, []string{c.Topic}, config)
-	if err != nil {
-		panic(err)
-	}
-	return consumer
 }
 
 // Close close resounces.
@@ -57,29 +48,7 @@ func (j *Job) Close() error {
 
 // Consume messages, watch signals
 func (j *Job) Consume() {
-	for {
-		select {
-		case err := <-j.consumer.Errors():
-			log.Errorf("consumer error(%v)", err)
-		case n := <-j.consumer.Notifications():
-			log.Infof("consumer rebalanced(%v)", n)
-		case msg, ok := <-j.consumer.Messages():
-			if !ok {
-				return
-			}
-			j.consumer.MarkOffset(msg, "")
-			// process push message
-			pushMsg := new(pb.PushMsg)
-			if err := proto.Unmarshal(msg.Value, pushMsg); err != nil {
-				log.Errorf("proto.Unmarshal(%v) error(%v)", msg, err)
-				continue
-			}
-			if err := j.push(context.Background(), pushMsg); err != nil {
-				log.Errorf("j.push(%v) error(%v)", pushMsg, err)
-			}
-			log.Infof("consume: %s/%d/%d\t%s\t%+v", msg.Topic, msg.Partition, msg.Offset, msg.Key, pushMsg)
-		}
-	}
+	j.consumer.Consume(j)
 }
 
 func (j *Job) watchComet(c *naming.Config) {
