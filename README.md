@@ -1,106 +1,122 @@
-goim v2.0
-==============
-[![Build Status](https://travis-ci.org/Terry-Mao/goim.svg?branch=master)](https://travis-ci.org/Terry-Mao/goim) 
-[![Go Report Card](https://goreportcard.com/badge/github.com/Terry-Mao/goim)](https://goreportcard.com/report/github.com/Terry-Mao/goim)
-[![codecov](https://codecov.io/gh/Terry-Mao/goim/branch/master/graph/badge.svg)](https://codecov.io/gh/Terry-Mao/goim)
+# 本地部署
+## 安装golang与goland
+    略
 
-goim is an im server writen in golang.
-
-## Features
- * Light weight
- * High performance
- * Pure Golang
- * Supports single push, multiple push and broadcasting
- * Supports one key to multiple subscribers (Configurable maximum subscribers count)
- * Supports heartbeats (Application heartbeats, TCP, KeepAlive, HTTP long pulling)
- * Supports authentication (Unauthenticated user can't subscribe)
- * Supports multiple protocols (WebSocket，TCP，HTTP）
- * Scalable architecture (Unlimited dynamic job and logic modules)
- * Asynchronous push notification based on Kafka
-
-## Architecture
-![arch](./docs/arch.png)
-
-## Quick Start
-
-### Build
+## 安装jdk、kafka、redis
+    goim访问kafka、redis均使用的默认配置
+    
+### Kafka
+获取kafka
 ```
-    make build
+wget http://apache.mirrors.hoobly.com/kafka/2.6.0/kafka_2.13-2.6.0.tgz
+tar -zxvf kafka_2.13-2.6.0.tgz 
+cd kafka_2.13-2.6.0/
+```
+启动zookeeper
+```
+bin/zookeeper-server-start.sh config/zookeeper.properties
+```
+启动kafka
+```
+bin/kafka-server-start.sh config/server.properties
+```
+### redis
+直接下载安装启动，略过不表
+
+如果redis设置了密码，需要在`cmd/logic/logic-example.toml`中修改`redis`节，添加`auth = "******"`
+
+### 获取bilibili/discovery源码
+```
+git clone https://github.com/bilibili/discovery
+cd discovery/cmd/discovery
+go build
+```
+默认配置启动discovery服务
+```
+./discovery -conf discovery-example.toml
 ```
 
-### Run
+
+## 本地运行goim
+### 获取goim源码
 ```
-    make run
-    make stop
-
-    // or
-    nohup target/logic -conf=target/logic.toml -region=sh -zone=sh001 -deploy.env=dev -weight=10 2>&1 > target/logic.log &
-    nohup target/comet -conf=target/comet.toml -region=sh -zone=sh001 -deploy.env=dev -weight=10 -addrs=127.0.0.1 2>&1 > target/logic.log &
-    nohup target/job -conf=target/job.toml -region=sh -zone=sh001 -deploy.env=dev 2>&1 > target/logic.log &
-
+git clone https://github.com/Terry-Mao/goim
 ```
-### Environment
+确保go module启用
 ```
-    env:
-    export REGION=sh
-    export ZONE=sh001
-    export DEPLOY_ENV=dev
-
-    supervisor:
-    environment=REGION=sh,ZONE=sh001,DEPLOY_ENV=dev
-
-    go flag:
-    -region=sh -zone=sh001 deploy.env=dev
+go env -w GO111MODULE=on
 ```
-### Configuration
-You can view the comments in target/comet.toml,logic.toml,job.toml to understand the meaning of the config.
+获取依赖
+```
+go mod download
+```
+### 构建启动
+```
+make build
+make run
+```
+关注`target`目录下的`comet.log`、`job.log`、`logic.log`，看有无错误日志
 
-### Dependencies
-[Discovery](https://github.com/bilibili/discovery)
+除此之外，其他日志位于`/tmp/`目录下,可以分别看到`logic.`、`comet.`、`job.`前缀的日志文件，如
+`/tmp/comet.INFO`、`/tmp/comet.WARNING`、`/tmp/comet.ERROR`等
+### 如何停止
+```
+make stop
+```
 
-[Kafka](https://kafka.apache.org/quickstart)
+### 运行客户端
+修改`examples/javascript/client.js`，注释掉
+`var ws = new WebSocket('ws://sh.tony.wiki:3102/sub');`
+打开`//var ws = new WebSocket('ws://127.0.0.1:3102/sub');`
+```
+cd examples/javascript
+go build
+go run main.go
+```
+浏览器打开[http://127.0.0.1:1999/](http://127.0.0.1:1999/)
 
-## Document
-[Protocol](./docs/protocol.png)
+### 模拟云端下发消息
+多播
+```
+curl -d 'This is a mid message~' http://127.0.0.1:3111/goim/push/mids?operation=1000&mids=123
+```
+聊天室
+```
+curl -d 'This is a room message...' http://127.0.0.1:3111/goim/push/room?operation=1000&type=live&room=1000
+```
+广播
+```
+curl -d 'This is a broadcast message!' http://127.0.0.1:3111/goim/push/all?operation=1000
+```
+单播
+```
+curl -d 'This is a unicast message~' http://127.0.0.1:3111/goim/push/keys?operation=1000&keys=cbe2d1b8-85c9-4bae-8333-3612e8ff751f
+```
+注意：单播的key是动态生成的（`key = uuid.New().String()`），要去redis查找
+```
+HKEYS mid_123
+```
+具体代码见`internal/logic/dao/redis.go`中的`AddMapping`方法
 
-[English](./README_en.md)
+key也可以由客户端自己指定，方法是修改`examples/javascript/client.js`中的`var token`，添加` "key":"abc",`
 
-[中文](./README_cn.md)
+经验证，key重复的时候，同一时刻只能有一个会话在线，存在互踢的逻辑，位于`internal/comet/bucket.go`的`Put`方法
+```
+if dch := b.chs[ch.Key]; dch != nil {
+    dch.Close()
+}
+```
 
-## Examples
-Websocket: [Websocket Client Demo](https://github.com/Terry-Mao/goim/tree/master/examples/javascript)
 
-Android: [Android](https://github.com/roamdy/goim-sdk)
-
-iOS: [iOS](https://github.com/roamdy/goim-oc-sdk)
-
-## Benchmark
-![benchmark](./docs/benchmark.jpg)
-
-### Benchmark Server
-| CPU | Memory | OS | Instance |
-| :---- | :---- | :---- | :---- |
-| Intel(R) Xeon(R) CPU E5-2630 v2 @ 2.60GHz  | DDR3 32GB | Debian GNU/Linux 8 | 1 |
-
-### Benchmark Case
-* Online: 1,000,000
-* Duration: 15min
-* Push Speed: 40/s (broadcast room)
-* Push Message: {"test":1}
-* Received calc mode: 1s per times, total 30 times
-
-### Benchmark Resource
-* CPU: 2000%~2300%
-* Memory: 14GB
-* GC Pause: 504ms
-* Network: Incoming(450MBit/s), Outgoing(4.39GBit/s)
-
-### Benchmark Result
-* Received: 35,900,000/s
-
-[中文](./docs/benchmark_cn.md)
-
-[English](./docs/benchmark_en.md)
-
-## LICENSE
-goim is is distributed under the terms of the MIT License.
+# 将Kafka替换为NATS
+* 安装并运行NATS
+    ```
+    go get github.com/nats-io/nats-server/v2
+    nats-server
+    ```
+* 更改配置
+    分别修改`cmd/logic/logic-example.toml`、`cmd/job/job-example.toml`，将其中的`mq`为`nats`，如下：
+    ```
+    mq = "nats"
+    ```
+    

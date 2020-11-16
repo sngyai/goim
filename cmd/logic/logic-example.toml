@@ -1,6 +1,7 @@
 # This is a TOML document. Boom
+mq = "kafka"
 [discovery]
-    nodes = ["192.168.2.229:7171"]
+    nodes = ["127.0.0.1:7171"]
 
 [regions]
     "bj" = ["北京","天津","河北","山东","山西","内蒙古","辽宁","吉林","黑龙江","甘肃","宁夏","新疆"]
@@ -45,6 +46,7 @@
 [redis]
     network = "tcp"
     addr = "192.168.2.229:6379"
+    auth = "123456"
     active = 60000
     idle = 1024
     dialTimeout = "200ms"
