@@ -28,3 +28,13 @@ func TestInt32(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+func TestInt64(t *testing.T) {
+	b := make([]byte, 8)
+	val := int64(9223372036854775807)
+	BigEndian.PutInt64(b, val)
+	i := BigEndian.Int64(b)
+	if i != val {
+		t.FailNow()
+	}
+}
